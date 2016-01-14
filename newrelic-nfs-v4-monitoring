@@ -169,7 +169,8 @@ class Agent:
 			self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/close", "Operations", row['close'])
 			writes += row['close']
 
-                self.populateDeltaMetrics(self.agent_host, metrics, "Main/Total", "Operations", row['total'])
+                if 'total' in row:
+			self.populateDeltaMetrics(self.agent_host, metrics, "Main/Total", "Operations", row['total'])
                 self.populateDeltaMetrics(self.agent_host, metrics, "Main/Read", "Operations", reads)
                 self.populateDeltaMetrics(self.agent_host, metrics, "Main/Write", "Operations", writes)
 
