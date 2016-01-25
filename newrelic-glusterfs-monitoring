@@ -1,0 +1,300 @@
+#!/usr/bin/python
+
+import httplib, urllib, csv, urllib2, socket, os, time, json, datetime, requests, ConfigParser, sys, traceback, subprocess
+
+def	my_int(sth):
+	if (sth == None or sth.isdigit() == False):
+		return 0
+	return int(sth)
+
+class LogsType:
+	ERROR = "ERR"
+	WARNING = "WRG"
+
+def singleton(cls):
+	instance=cls()
+	cls.__new__ = cls.__call__= lambda cls: instance
+	cls.__init__ = lambda self: None
+	return instance
+
+@singleton
+class Config():
+	def get(self, section, item):
+		return self.cp.get(section, item)
+	
+	def getInt(self, section, item):
+		return self.cp.getint(section, item)
+
+	def getBoolean(self, section, item):
+		return self.cp.getboolean(section, item)
+
+	def __init__(self):
+		self.cp = ConfigParser.RawConfigParser()
+		self.cp.read('/etc/newrelic/nfs-agent-initcron.cfg')
+
+class Agent:
+	def update_postdata(self):
+		self.post_data['components'] = []
+		for component in self.components:
+			self.post_data['components'].append(self.components[component])
+
+	def log(self, errtype, message):
+		self.logs_file.write("[" + errtype + "]" + ' ' + str(datetime.datetime.now()) + ' : ' + message +'\n')
+
+	def populateMetrics(self, metrics, value_type, scale, value):
+		label = "Component/" + value_type + "[" + scale + "]"
+		if (value == 'Y'):
+			value = 1
+		if (value == None or value == ''):
+			value = 0
+		if label in metrics:
+			yet = metrics[label]
+			if type(yet) is dict:
+				yet['min'] = (yet['min'] < value and yet['min'] or value)
+				yet['max'] = (yet['max'] > value and yet['max'] or value)
+				yet['total'] += value
+				yet['count'] += 1
+				yet['sum_of_squares'] += (value * value)
+				metrics[label] = yet
+			else:
+				metrics[label] = {}
+				metrics[label]['min'] = (yet < value and yet or value)
+				metrics[label]['max'] = (yet > value and yet or value)
+				metrics[label]['total'] = yet + value
+				metrics[label]['count'] = 2
+				metrics[label]['sum_of_squares'] = (yet * yet + value * value)
+		else:
+			metrics[label] = value
+
+	def populateDeltaMetrics(self, name, metrics, value_type, scale, value):
+		label = "Component/" + value_type + "[" + scale + "]"
+		if (name not in self.old):
+			self.old[name] = {}
+		if (value == None or value == ''):
+			value = 0
+		delta = 0
+		if label in self.old[name] and value > self.old[name][label]:
+			delta = value - self.old[name][label]
+		self.old[name][label] = value
+		self.populateMetrics(metrics, value_type, scale, delta)
+	
+	def get_nfsstat_data(self):
+                proc = subprocess.Popen(['del=$(gluster volume profile magnolia info | grep -n "Brick"  | sed -n 2p | cut -d":" -f 1) && gluster volume profile magnolia info | sed -n "1,${del}p"'], stdout=subprocess.PIPE, shell=True)
+                (out, err) = proc.communicate()
+                ret = {}
+                for line in out.split('\n'):
+                        content = line.split()
+                        if (len(content) == 9):
+                                ret[content[8]] = my_int(content[7])
+				ret['per_let'] = float(content[0])
+				ret['avg_let'] = float(content[1])
+				ret['min_let'] = float(content[3])
+				ret['max_let'] = float(content[5])
+                return ret
+
+	def post_datas(self):
+		post_json = json.dumps(self.post_data, sort_keys=True, indent=4)
+		print post_json
+		headers = {"Content-Type": "application/json",
+					"Accept": "application/json","X-License-Key": self.newrelic_license}
+
+		conn = httplib.HTTPSConnection(self.platform_api_ip, timeout=5)
+		conn.request("POST", self.platform_api_url, post_json, headers)
+		response = conn.getresponse()
+		return (response.status)
+
+	def get_component_from_csv(self, row):
+		duration = int(time.time() - self.last_poll_time)
+                if (self.agent_host not in self.components):
+                        tmp_component = {}
+                        tmp_component['name'] = self.agent_host
+                        tmp_component['guid'] = self.guid
+                        tmp_component['duration'] = duration
+                        self.components[self.agent_host] = tmp_component
+                        metrics = {}
+                else:
+                        metrics = self.components[self.agent_host]['metrics']
+                self.components[self.agent_host]['duration'] = duration
+		READS=0
+		WRITES=0
+		if 'CREATE' in row:
+	                self.populateDeltaMetrics(self.agent_host, metrics, "Files/CREATE", "Operations", row['CREATE'])
+			self.populateMetrics(metrics, "Files/CREATE", "Percent-latency", row['per_let'])
+			self.populateMetrics(metrics, "Files/CREATE", "Average-latency", row['avg_let'])
+			self.populateMetrics(metrics, "Files/CREATE", "Minimum-latency", row['min_let'])
+			self.populateMetrics(metrics, "Files/CREATE", "Maximum-latency", row['max_let'])
+ 		        WRITES += row['CREATE'] 	
+		if 'WRITE' in row:
+                	self.populateDeltaMetrics(self.agent_host, metrics, "Files/WRITE", "Operations", row['WRITE'])
+                        self.populateMetrics(metrics, "Files/WRITE", "Percent-latency", row['per_let'])
+                        self.populateMetrics(metrics, "Files/WRITE", "Average-latency", row['avg_let'])
+                        self.populateMetrics(metrics, "Files/WRITE", "Minimum-latency", row['min_let'])
+                        self.populateMetrics(metrics, "Files/WRITE", "Maximum-latency", row['max_let'])
+                        WRITES += row['WRITE']
+                if 'READ' in row:
+                	self.populateDeltaMetrics(self.agent_host, metrics, "Files/READ", "Operations", row['READ'])
+                        self.populateMetrics(metrics, "Files/READ", "Percent-latency", row['per_let'])
+                        self.populateMetrics(metrics, "Files/READ", "Average-latency", row['avg_let'])
+                        self.populateMetrics(metrics, "Files/READ", "Minimum-latency", row['min_let'])
+                        self.populateMetrics(metrics, "Files/READ", "Maximum-latency", row['max_let'])
+ 			READS += row['READ']
+		if 'FSYNC' in row:
+	                self.populateDeltaMetrics(self.agent_host, metrics, "Files/FSYNC", "Operations", row['FSYNC'])
+                        self.populateMetrics(metrics, "Files/FSYNC", "Percent-latency", row['per_let'])
+                        self.populateMetrics(metrics, "Files/FSYNC", "Average-latency", row['avg_let'])
+                        self.populateMetrics(metrics, "Files/FSYNC", "Minimum-latency", row['min_let'])
+                        self.populateMetrics(metrics, "Files/FSYNC", "Maximum-latency", row['max_let'])
+			WRITES += row['FSYNC']
+		if 'UNLINK' in row:
+              		self.populateDeltaMetrics(self.agent_host, metrics, "Files/UNLINK", "Operations", row['UNLINK'])
+                        self.populateMetrics(metrics, "Files/UNLINK", "Percent-latency", row['per_let'])
+                        self.populateMetrics(metrics, "Files/UNLINK", "Average-latency", row['avg_let'])
+                        self.populateMetrics(metrics, "Files/UNLINK", "Minimum-latency", row['min_let'])
+                        self.populateMetrics(metrics, "Files/UNLINK", "Maximum-latency", row['max_let'])
+  			WRITES += row['UNLINK']
+		if 'READDIR' in row:
+	                self.populateDeltaMetrics(self.agent_host, metrics, "Directories/READDIR", "Operations", row['READDIR'])
+                        self.populateMetrics(metrics, "Directories/READDIR", "Percent-latency", row['per_let'])
+                        self.populateMetrics(metrics, "Directories/READDIR", "Average-latency", row['avg_let'])
+                        self.populateMetrics(metrics, "Directories/READDIR", "Minimum-latency", row['min_let'])
+                        self.populateMetrics(metrics, "Directories/READDIR", "Maximum-latency", row['max_let'])
+                        READS += row['READDIR']
+                if 'MKDIR' in row:
+	                self.populateDeltaMetrics(self.agent_host, metrics, "Directories/MKDIR", "Operations", row['MKDIR'])
+                        self.populateMetrics(metrics, "Directories/MKDIR", "Percent-latency", row['per_let'])
+                        self.populateMetrics(metrics, "Directories/MKDIR", "Average-latency", row['avg_let'])
+                        self.populateMetrics(metrics, "Directories/MKDIR", "Minimum-latency", row['min_let'])
+                        self.populateMetrics(metrics, "Directories/MKDIR", "Maximum-latency", row['max_let'])
+                        WRITES += row['MKDIR']
+		if 'RMDIR' in row:
+			self.populateDeltaMetrics(self.agent_host, metrics, "Directories/RMDIR", "Operations", row['RMDIR'])
+                        self.populateMetrics(metrics, "Directories/RMDIR", "Percent-latency", row['per_let'])
+                        self.populateMetrics(metrics, "Directories/RMDIR", "Average-latency", row['avg_let'])
+                        self.populateMetrics(metrics, "Directories/RMDIR", "Minimum-latency", row['min_let'])
+                        self.populateMetrics(metrics, "Directories/RMDIR", "Maximum-latency", row['max_let'])
+			WRITES += row['RMDIR']
+		if 'GETXATTR' in row:
+	                self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/GETXATTR", "Operations", row['GETXATTR'])
+                        self.populateMetrics(metrics, "FilesInformations/GETXATTR", "Percent-latency", row['per_let'])
+                        self.populateMetrics(metrics, "FilesInformations/GETXATTR", "Average-latency", row['avg_let'])
+                        self.populateMetrics(metrics, "FilesInformations/GETXATTR", "Minimum-latency", row['min_let'])
+                        self.populateMetrics(metrics, "FilesInformations/GETXATTR", "Maximum-latency", row['max_let'])
+                        READS += row['GETXATTR']
+		if 'SETXATTR' in row:
+                	self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/SETXATTR", "Operations", row['SETXATTR'])
+                        self.populateMetrics(metrics, "FilesInformations/SETXATTR", "Percent-latency", row['per_let'])
+                        self.populateMetrics(metrics, "FilesInformations/SETXATTR", "Average-latency", row['avg_let'])
+                        self.populateMetrics(metrics, "FilesInformations/SETXATTR", "Minimum-latency", row['min_let'])
+                        self.populateMetrics(metrics, "FilesInformations/SETXATTR", "Maximum-latency", row['max_let'])
+			WRITES += row['SETXATTR']
+                if 'GETATTR' in row:
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/GETATTR", "Operations", row['GETATTR'])
+                        self.populateMetrics(metrics, "FilesInformations/GETATTR", "Percent-latency", row['per_let'])
+                        self.populateMetrics(metrics, "FilesInformations/GETATTR", "Average-latency", row['avg_let'])
+                        self.populateMetrics(metrics, "FilesInformations/GETATTR", "Minimum-latency", row['min_let'])
+                        self.populateMetrics(metrics, "FilesInformations/GETATTR", "Maximum-latency", row['max_let'])
+                        READS += row['GETATTR']
+                if 'SETATTR' in row:
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/SETATTR", "Operations", row['SETATTR'])
+                        self.populateMetrics(metrics, "FilesInformations/SETATTR", "Percent-latency", row['per_let'])
+                        self.populateMetrics(metrics, "FilesInformations/SETATTR", "Average-latency", row['avg_let'])
+                        self.populateMetrics(metrics, "FilesInformations/SETATTR", "Minimum-latency", row['min_let'])
+                        self.populateMetrics(metrics, "FilesInformations/SETATTR", "Maximum-latency", row['max_let'])
+                        WRITES += row['SETATTR']
+		if 'LOOKUP' in row:
+	                self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/lookup", "Operations", row['LOOKUP'])
+                        self.populateMetrics(metrics, "FilesInformations/LOOKUP", "Percent-latency", row['per_let'])
+                        self.populateMetrics(metrics, "FilesInformations/LOOKUP", "Average-latency", row['avg_let'])
+                        self.populateMetrics(metrics, "FilesInformations/LOOKUP", "Minimum-latency", row['min_let'])
+                        self.populateMetrics(metrics, "FilesInformations/LOOKUP", "Maximum-latency", row['max_let'])
+			READS += row['LOOKUP']
+		if 'OPEN' in row:
+	                self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/OPEN", "Operations", row['OPEN'])
+                        self.populateMetrics(metrics, "FilesInformations/OPEN", "Percent-latency", row['per_let'])
+                        self.populateMetrics(metrics, "FilesInformations/OPEN", "Average-latency", row['avg_let'])
+                        self.populateMetrics(metrics, "FilesInformations/OPEN", "Minimum-latency", row['min_let'])
+                        self.populateMetrics(metrics, "FilesInformations/OPEN", "Maximum-latency", row['max_let'])
+			READS += row['OPEN']
+
+		self.populateDeltaMetrics(self.agent_host, metrics, "Main/Total", "Operations", READS + WRITES)
+                self.populateDeltaMetrics(self.agent_host, metrics, "Main/Read", "Operations", READS)
+                self.populateDeltaMetrics(self.agent_host, metrics, "Main/Write", "Operations", WRITES)
+
+                
+                self.components[self.agent_host]['metrics'] = metrics
+
+	def run(self):
+		run = True
+		code = 200
+		while (run):
+			try:
+				data = self.get_nfsstat_data()
+				self.get_component_from_csv(data)
+				self.update_postdata()
+				code = self.post_datas()
+				if (code == 200):
+					# Clearing component cash
+					self.components = {}
+					self.last_poll_time = time.time()
+				elif (code == 400):
+					self.log(LogsType.ERROR, " 400 error encontered, request uncorrect")
+					run = False
+				elif (code == 403):
+					self.log(LogsType.ERROR, " 403 acces forbidden, checkout your license key")
+					run = False
+				elif (code == 404):
+					self.log(LogsType.ERROR, " 404 bad URL - checkout with developper of this application")
+					run = False
+				elif (code == 415):
+					self.log(LogsType.ERROR, " 415 request incorrect")
+					run = False
+			except Exception as e:
+				traceback.print_exc(file=sys.stdout)
+				self.log(LogsType.ERROR, str(e))
+				code = "THROWN"
+			if (run):
+				time.sleep( int(self.poll_cycle))
+				
+	def __init__(self):
+		# Init NewRelic Variables
+		self.platform_api_uri = Config().get('NewRelicAPI', 'uri')
+		self.platform_api_url = Config().get('NewRelicAPI', 'url')
+		self.platform_api_ip = Config().get('NewRelicAPI', 'ip')
+		self.newrelic_license = Config().get('NewRelicAPI', 'license_key')
+		self.poll_cycle = Config().getInt('NewRelicAPI', 'poll_cycle')
+
+		# Init of agent informations
+		self.guid = Config().get('Agent', 'guid')
+		self.agent_host = socket.gethostname()
+		self.agent_pid = os.getpid()
+		self.version = Config().get('Agent', 'version')
+		self.agent_hash = {'host' : self.agent_host, 'pid' : self.agent_pid, 'version' : str(self.version)}
+
+		# Init old dict for delta computing values
+		self.old = {}
+		
+		# Init time of program start
+		self.last_poll_time = time.time() - float(self.poll_cycle)
+
+		# Init of component
+		self.components = {}
+
+		# Init post_datas
+		self.post_data = {'agent': self.agent_hash, 'components':[]}
+
+		# Init Logs
+		self.logs_enabled = Config().getBoolean('Logs', 'enable')
+		if (self.logs_enabled):
+			self.logs_file = open(Config().get('Logs', 'file'), 'a')
+			if (self.logs_file == None):
+				sys.stderr.write('Impossible to open log_file, no logs saved')
+				self.logs_enabled  = False
+
+if __name__ == '__main__':
+	euid = os.geteuid()
+	if euid != 0:
+		print ('This agent needs to be run as sudoers or root')
+	else:
+		p = Agent()
+		p.run()
+
