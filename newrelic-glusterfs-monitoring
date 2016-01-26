@@ -21,7 +21,7 @@ def singleton(cls):
 class Config():
 	def get(self, section, item):
 		return self.cp.get(section, item)
-	
+
 	def getInt(self, section, item):
 		return self.cp.getint(section, item)
 
@@ -73,11 +73,14 @@ class Agent:
 		if (value == None or value == ''):
 			value = 0
 		delta = 0
-		if label in self.old[name] and value > self.old[name][label]:
-			delta = value - self.old[name][label]
+		if 'latency' in scale:
+			delta = value
+		else:
+			if label in self.old[name] and value > self.old[name][label]:
+				delta = value - self.old[name][label]
 		self.old[name][label] = value
 		self.populateMetrics(metrics, value_type, scale, delta)
-	
+
 	def get_nfsstat_data(self):
                 proc = subprocess.Popen(['del=$(gluster volume profile magnolia info | grep -n "Brick"  | sed -n 2p | cut -d":" -f 1) && gluster volume profile magnolia info | sed -n "1,${del}p"'], stdout=subprocess.PIPE, shell=True)
                 (out, err) = proc.communicate()
@@ -85,11 +88,12 @@ class Agent:
                 for line in out.split('\n'):
                         content = line.split()
                         if (len(content) == 9):
-                                ret[content[8]] = my_int(content[7])
-				ret['per_let'] = float(content[0])
-				ret['avg_let'] = float(content[1])
-				ret['min_let'] = float(content[3])
-				ret['max_let'] = float(content[5])
+				ret[content[8]] = {}
+                                ret[content[8]]['op'] = my_int(content[7])
+				ret[content[8]]['per_let'] = float(content[0])
+				ret[content[8]]['avg_let'] = float(content[1])
+				ret[content[8]]['min_let'] = float(content[3])
+				ret[content[8]]['max_let'] = float(content[5])
                 return ret
 
 	def post_datas(self):
@@ -118,109 +122,109 @@ class Agent:
 		READS=0
 		WRITES=0
 		if 'CREATE' in row:
-	                self.populateDeltaMetrics(self.agent_host, metrics, "Files/CREATE", "Operations", row['CREATE'])
-			self.populateMetrics(metrics, "Files/CREATE", "Percent-latency", row['per_let'])
-			self.populateMetrics(metrics, "Files/CREATE", "Average-latency", row['avg_let'])
-			self.populateMetrics(metrics, "Files/CREATE", "Minimum-latency", row['min_let'])
-			self.populateMetrics(metrics, "Files/CREATE", "Maximum-latency", row['max_let'])
- 		        WRITES += row['CREATE'] 	
+	                self.populateDeltaMetrics(self.agent_host, metrics, "Files/CREATE", "Operations", row['CREATE']['op'])
+			self.populateDeltaMetrics(self.agent_host, metrics, "Files/CREATE", "Percent-latency", row['CREATE']['per_let'])
+			self.populateDeltaMetrics(self.agent_host, metrics, "Files/CREATE", "Average-latency", row['CREATE']['avg_let'])
+			self.populateDeltaMetrics(self.agent_host, metrics, "Files/CREATE", "Minimum-latency", row['CREATE']['min_let'])
+			self.populateDeltaMetrics(self.agent_host, metrics, "Files/CREATE", "Maximum-latency", row['CREATE']['max_let'])
+ 		        WRITES += row['CREATE']['op']
 		if 'WRITE' in row:
-                	self.populateDeltaMetrics(self.agent_host, metrics, "Files/WRITE", "Operations", row['WRITE'])
-                        self.populateMetrics(metrics, "Files/WRITE", "Percent-latency", row['per_let'])
-                        self.populateMetrics(metrics, "Files/WRITE", "Average-latency", row['avg_let'])
-                        self.populateMetrics(metrics, "Files/WRITE", "Minimum-latency", row['min_let'])
-                        self.populateMetrics(metrics, "Files/WRITE", "Maximum-latency", row['max_let'])
-                        WRITES += row['WRITE']
+                	self.populateDeltaMetrics(self.agent_host, metrics, "Files/WRITE", "Operations", row['WRITE']['op'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/WRITE", "Percent-latency", row['WRITE']['per_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/WRITE", "Average-latency", row['WRITE']['avg_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/WRITE", "Minimum-latency", row['WRITE']['min_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/WRITE", "Maximum-latency", row['WRITE']['max_let'])
+                        WRITES += row['WRITE']['op']
                 if 'READ' in row:
-                	self.populateDeltaMetrics(self.agent_host, metrics, "Files/READ", "Operations", row['READ'])
-                        self.populateMetrics(metrics, "Files/READ", "Percent-latency", row['per_let'])
-                        self.populateMetrics(metrics, "Files/READ", "Average-latency", row['avg_let'])
-                        self.populateMetrics(metrics, "Files/READ", "Minimum-latency", row['min_let'])
-                        self.populateMetrics(metrics, "Files/READ", "Maximum-latency", row['max_let'])
- 			READS += row['READ']
+                	self.populateDeltaMetrics(self.agent_host, metrics, "Files/READ", "Operations", row['READ']['op'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/READ", "Percent-latency", row['READ']['per_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/READ", "Average-latency", row['READ']['avg_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/READ", "Minimum-latency", row['READ']['min_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/READ", "Maximum-latency", row['READ']['max_let'])
+ 			READS += row['READ']['op']
 		if 'FSYNC' in row:
-	                self.populateDeltaMetrics(self.agent_host, metrics, "Files/FSYNC", "Operations", row['FSYNC'])
-                        self.populateMetrics(metrics, "Files/FSYNC", "Percent-latency", row['per_let'])
-                        self.populateMetrics(metrics, "Files/FSYNC", "Average-latency", row['avg_let'])
-                        self.populateMetrics(metrics, "Files/FSYNC", "Minimum-latency", row['min_let'])
-                        self.populateMetrics(metrics, "Files/FSYNC", "Maximum-latency", row['max_let'])
-			WRITES += row['FSYNC']
+	                self.populateDeltaMetrics(self.agent_host, metrics, "Files/FSYNC", "Operations", row['FSYNC']['op'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/FSYNC", "Percent-latency", row['FSYNC']['per_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/FSYNC", "Average-latency", row['FSYNC']['avg_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/FSYNC", "Minimum-latency", row['FSYNC']['min_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/FSYNC", "Maximum-latency", row['FSYNC']['max_let'])
+			WRITES += row['FSYNC']['op']
 		if 'UNLINK' in row:
-              		self.populateDeltaMetrics(self.agent_host, metrics, "Files/UNLINK", "Operations", row['UNLINK'])
-                        self.populateMetrics(metrics, "Files/UNLINK", "Percent-latency", row['per_let'])
-                        self.populateMetrics(metrics, "Files/UNLINK", "Average-latency", row['avg_let'])
-                        self.populateMetrics(metrics, "Files/UNLINK", "Minimum-latency", row['min_let'])
-                        self.populateMetrics(metrics, "Files/UNLINK", "Maximum-latency", row['max_let'])
-  			WRITES += row['UNLINK']
+              		self.populateDeltaMetrics(self.agent_host, metrics, "Files/UNLINK", "Operations", row['UNLINK']['op'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/UNLINK", "Percent-latency", row['UNLINK']['per_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/UNLINK", "Average-latency", row['UNLINK']['avg_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/UNLINK", "Minimum-latency", row['UNLINK']['min_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Files/UNLINK", "Maximum-latency", row['UNLINK']['max_let'])
+  			WRITES += row['UNLINK']['op']
 		if 'READDIR' in row:
-	                self.populateDeltaMetrics(self.agent_host, metrics, "Directories/READDIR", "Operations", row['READDIR'])
-                        self.populateMetrics(metrics, "Directories/READDIR", "Percent-latency", row['per_let'])
-                        self.populateMetrics(metrics, "Directories/READDIR", "Average-latency", row['avg_let'])
-                        self.populateMetrics(metrics, "Directories/READDIR", "Minimum-latency", row['min_let'])
-                        self.populateMetrics(metrics, "Directories/READDIR", "Maximum-latency", row['max_let'])
-                        READS += row['READDIR']
+	                self.populateDeltaMetrics(self.agent_host, metrics, "Directories/READDIR", "Operations", row['READDIR']['op'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Directories/READDIR", "Percent-latency", row['READDIR']['per_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Directories/READDIR", "Average-latency", row['READDIR']['avg_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Directories/READDIR", "Minimum-latency", row['READDIR']['min_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Directories/READDIR", "Maximum-latency", row['READDIR']['max_let'])
+                        READS += row['READDIR']['op']
                 if 'MKDIR' in row:
-	                self.populateDeltaMetrics(self.agent_host, metrics, "Directories/MKDIR", "Operations", row['MKDIR'])
-                        self.populateMetrics(metrics, "Directories/MKDIR", "Percent-latency", row['per_let'])
-                        self.populateMetrics(metrics, "Directories/MKDIR", "Average-latency", row['avg_let'])
-                        self.populateMetrics(metrics, "Directories/MKDIR", "Minimum-latency", row['min_let'])
-                        self.populateMetrics(metrics, "Directories/MKDIR", "Maximum-latency", row['max_let'])
-                        WRITES += row['MKDIR']
+	                self.populateDeltaMetrics(self.agent_host, metrics, "Directories/MKDIR", "Operations", row['MKDIR']['op'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Directories/MKDIR", "Percent-latency", row['MKDIR']['per_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Directories/MKDIR", "Average-latency", row['MKDIR']['avg_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Directories/MKDIR", "Minimum-latency", row['MKDIR']['min_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Directories/MKDIR", "Maximum-latency", row['MKDIR']['max_let'])
+                        WRITES += row['MKDIR']['op']
 		if 'RMDIR' in row:
-			self.populateDeltaMetrics(self.agent_host, metrics, "Directories/RMDIR", "Operations", row['RMDIR'])
-                        self.populateMetrics(metrics, "Directories/RMDIR", "Percent-latency", row['per_let'])
-                        self.populateMetrics(metrics, "Directories/RMDIR", "Average-latency", row['avg_let'])
-                        self.populateMetrics(metrics, "Directories/RMDIR", "Minimum-latency", row['min_let'])
-                        self.populateMetrics(metrics, "Directories/RMDIR", "Maximum-latency", row['max_let'])
-			WRITES += row['RMDIR']
+			self.populateDeltaMetrics(self.agent_host, metrics, "Directories/RMDIR", "Operations", row['RMDIR']['op'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Directories/RMDIR", "Percent-latency", row['RMDIR']['per_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Directories/RMDIR", "Average-latency", row['RMDIR']['avg_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Directories/RMDIR", "Minimum-latency", row['RMDIR']['min_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "Directories/RMDIR", "Maximum-latency", row['RMDIR']['max_let'])
+			WRITES += row['RMDIR']['op']
 		if 'GETXATTR' in row:
-	                self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/GETXATTR", "Operations", row['GETXATTR'])
-                        self.populateMetrics(metrics, "FilesInformations/GETXATTR", "Percent-latency", row['per_let'])
-                        self.populateMetrics(metrics, "FilesInformations/GETXATTR", "Average-latency", row['avg_let'])
-                        self.populateMetrics(metrics, "FilesInformations/GETXATTR", "Minimum-latency", row['min_let'])
-                        self.populateMetrics(metrics, "FilesInformations/GETXATTR", "Maximum-latency", row['max_let'])
-                        READS += row['GETXATTR']
+	                self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/GETXATTR", "Operations", row['GETXATTR']['op'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/GETXATTR", "Percent-latency", row['GETXATTR']['per_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/GETXATTR", "Average-latency", row['GETXATTR']['avg_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/GETXATTR", "Minimum-latency", row['GETXATTR']['min_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/GETXATTR", "Maximum-latency", row['GETXATTR']['max_let'])
+                        READS += row['GETXATTR']['op']
 		if 'SETXATTR' in row:
-                	self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/SETXATTR", "Operations", row['SETXATTR'])
-                        self.populateMetrics(metrics, "FilesInformations/SETXATTR", "Percent-latency", row['per_let'])
-                        self.populateMetrics(metrics, "FilesInformations/SETXATTR", "Average-latency", row['avg_let'])
-                        self.populateMetrics(metrics, "FilesInformations/SETXATTR", "Minimum-latency", row['min_let'])
-                        self.populateMetrics(metrics, "FilesInformations/SETXATTR", "Maximum-latency", row['max_let'])
-			WRITES += row['SETXATTR']
+                	self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/SETXATTR", "Operations", row['SETXATTR']['op'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/SETXATTR", "Percent-latency", row['SETXATTR']['per_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/SETXATTR", "Average-latency", row['SETXATTR']['avg_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/SETXATTR", "Minimum-latency", row['SETXATTR']['min_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/SETXATTR", "Maximum-latency", row['SETXATTR']['max_let'])
+			WRITES += row['SETXATTR']['op']
                 if 'GETATTR' in row:
-                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/GETATTR", "Operations", row['GETATTR'])
-                        self.populateMetrics(metrics, "FilesInformations/GETATTR", "Percent-latency", row['per_let'])
-                        self.populateMetrics(metrics, "FilesInformations/GETATTR", "Average-latency", row['avg_let'])
-                        self.populateMetrics(metrics, "FilesInformations/GETATTR", "Minimum-latency", row['min_let'])
-                        self.populateMetrics(metrics, "FilesInformations/GETATTR", "Maximum-latency", row['max_let'])
-                        READS += row['GETATTR']
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/GETATTR", "Operations", row['GETATTR']['op'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/GETATTR", "Percent-latency", row['GETATTR']['per_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/GETATTR", "Average-latency", row['GETATTR']['avg_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/GETATTR", "Minimum-latency", row['GETATTR']['min_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/GETATTR", "Maximum-latency", row['GETATTR']['max_let'])
+                        READS += row['GETATTR']['op']
                 if 'SETATTR' in row:
-                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/SETATTR", "Operations", row['SETATTR'])
-                        self.populateMetrics(metrics, "FilesInformations/SETATTR", "Percent-latency", row['per_let'])
-                        self.populateMetrics(metrics, "FilesInformations/SETATTR", "Average-latency", row['avg_let'])
-                        self.populateMetrics(metrics, "FilesInformations/SETATTR", "Minimum-latency", row['min_let'])
-                        self.populateMetrics(metrics, "FilesInformations/SETATTR", "Maximum-latency", row['max_let'])
-                        WRITES += row['SETATTR']
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/SETATTR", "Operations", row['SETATTR']['op'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/SETATTR", "Percent-latency", row['SETATTR']['per_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/SETATTR", "Average-latency", row['SETATTR']['avg_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/SETATTR", "Minimum-latency", row['SETATTR']['min_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/SETATTR", "Maximum-latency", row['SETATTR']['max_let'])
+                        WRITES += row['SETATTR']['op']
 		if 'LOOKUP' in row:
-	                self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/lookup", "Operations", row['LOOKUP'])
-                        self.populateMetrics(metrics, "FilesInformations/LOOKUP", "Percent-latency", row['per_let'])
-                        self.populateMetrics(metrics, "FilesInformations/LOOKUP", "Average-latency", row['avg_let'])
-                        self.populateMetrics(metrics, "FilesInformations/LOOKUP", "Minimum-latency", row['min_let'])
-                        self.populateMetrics(metrics, "FilesInformations/LOOKUP", "Maximum-latency", row['max_let'])
-			READS += row['LOOKUP']
+	                self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/lookup", "Operations", row['LOOKUP']['op'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/LOOKUP", "Percent-latency", row['LOOKUP']['per_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/LOOKUP", "Average-latency", row['LOOKUP']['avg_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/LOOKUP", "Minimum-latency", row['LOOKUP']['min_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/LOOKUP", "Maximum-latency", row['LOOKUP']['max_let'])
+			READS += row['LOOKUP']['op']
 		if 'OPEN' in row:
-	                self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/OPEN", "Operations", row['OPEN'])
-                        self.populateMetrics(metrics, "FilesInformations/OPEN", "Percent-latency", row['per_let'])
-                        self.populateMetrics(metrics, "FilesInformations/OPEN", "Average-latency", row['avg_let'])
-                        self.populateMetrics(metrics, "FilesInformations/OPEN", "Minimum-latency", row['min_let'])
-                        self.populateMetrics(metrics, "FilesInformations/OPEN", "Maximum-latency", row['max_let'])
-			READS += row['OPEN']
+	                self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/OPEN", "Operations", row['OPEN']['op'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/OPEN", "Percent-latency", row['OPEN']['per_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/OPEN", "Average-latency", row['OPEN']['avg_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/OPEN", "Minimum-latency", row['OPEN']['min_let'])
+                        self.populateDeltaMetrics(self.agent_host, metrics, "FilesInformations/OPEN", "Maximum-latency", row['OPEN']['max_let'])
+			READS += row['OPEN']['op']
 
 		self.populateDeltaMetrics(self.agent_host, metrics, "Main/Total", "Operations", READS + WRITES)
                 self.populateDeltaMetrics(self.agent_host, metrics, "Main/Read", "Operations", READS)
                 self.populateDeltaMetrics(self.agent_host, metrics, "Main/Write", "Operations", WRITES)
 
-                
+
                 self.components[self.agent_host]['metrics'] = metrics
 
 	def run(self):
@@ -254,7 +258,7 @@ class Agent:
 				code = "THROWN"
 			if (run):
 				time.sleep( int(self.poll_cycle))
-				
+
 	def __init__(self):
 		# Init NewRelic Variables
 		self.platform_api_uri = Config().get('NewRelicAPI', 'uri')
@@ -272,7 +276,7 @@ class Agent:
 
 		# Init old dict for delta computing values
 		self.old = {}
-		
+
 		# Init time of program start
 		self.last_poll_time = time.time() - float(self.poll_cycle)
 
