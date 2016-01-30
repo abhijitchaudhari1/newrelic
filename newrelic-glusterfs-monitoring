@@ -48,21 +48,22 @@ class Agent:
 		if (value == None or value == ''):
 			value = 0
 		if label in metrics:
-			yet = metrics[label]
-			if type(yet) is dict:
-				yet['min'] = (yet['min'] < value and yet['min'] or value)
-				yet['max'] = (yet['max'] > value and yet['max'] or value)
-				yet['total'] += value
-				yet['count'] += 1
-				yet['sum_of_squares'] += (value * value)
-				metrics[label] = yet
-			else:
-				metrics[label] = {}
-				metrics[label]['min'] = (yet < value and yet or value)
-				metrics[label]['max'] = (yet > value and yet or value)
-				metrics[label]['total'] = yet + value
-				metrics[label]['count'] = 2
-				metrics[label]['sum_of_squares'] = (yet * yet + value * value)
+			old = metrics[label]
+			metrics[label] = ( old + value ) / 2 
+#			if type(yet) is dict:
+#				yet['min'] = (yet['min'] < value and yet['min'] or value)
+#				yet['max'] = (yet['max'] > value and yet['max'] or value)
+#				yet['total'] += value
+#				yet['count'] += 1
+#				yet['sum_of_squares'] += (value * value)
+#				metrics[label] = yet
+#			else:
+#				metrics[label] = {}
+#				metrics[label]['min'] = (yet < value and yet or value)
+#				metrics[label]['max'] = (yet > value and yet or value)
+#				metrics[label]['total'] = yet + value
+#				metrics[label]['count'] = 2
+#				metrics[label]['sum_of_squares'] = (yet * yet + value * value)
 		else:
 			metrics[label] = value
 
