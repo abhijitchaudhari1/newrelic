@@ -30,7 +30,7 @@ class Config():
 
 	def __init__(self):
 		self.cp = ConfigParser.RawConfigParser()
-		self.cp.read('/etc/newrelic/nfs-agent-initcron.cfg')
+		self.cp.read('/etc/newrelic/newrelic-agent.cfg')
 
 class Agent:
 	def update_postdata(self):
@@ -218,7 +218,7 @@ class Agent:
 		self.poll_cycle = Config().getInt('NewRelicAPI', 'poll_cycle')
 
 		# Init of agent informations
-		self.guid = Config().get('Agent', 'guid')
+		self.guid = Config().get('Agent', 'nfs_v4_guid')
 		self.agent_host = socket.gethostname()
 		self.agent_pid = os.getpid()
 		self.version = Config().get('Agent', 'version')
