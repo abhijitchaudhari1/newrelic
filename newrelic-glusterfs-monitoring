@@ -119,8 +119,6 @@ class Agent:
 		for volume in self.complete_list.split('\n'):
 			volume = str(volume)
 			if volume is not '':
-				print "volume abhijit"
-				print volume
 				duration = int(time.time() - self.last_poll_time)
                 		if (self.agent_host not in self.components):
                         		tmp_component = {}
@@ -163,11 +161,11 @@ class Agent:
                 		        self.populateDeltaMetrics(self.agent_host, metrics, volume + "/" + "Files/FSYNC", "Maximum-latency", row[volume]['FSYNC']['max_let'])
 					WRITES += row[volume]['FSYNC']['op']
 				if 'UNLINK' in row[volume]:
-              				self.populateDeltaMetrics(self.agent_host, metrics, "Files/UNLINK", "Operations", row[volume]['UNLINK']['op'])
-                		        self.populateDeltaMetrics(self.agent_host, metrics, "Files/UNLINK", "Percent-latency", row[volume]['UNLINK']['per_let'])
-                		        self.populateDeltaMetrics(self.agent_host, metrics, "Files/UNLINK", "Average-latency", row[volume]['UNLINK']['avg_let'])
-                		        self.populateDeltaMetrics(self.agent_host, metrics, "Files/UNLINK", "Minimum-latency", row[volume]['UNLINK']['min_let'])
-                		        self.populateDeltaMetrics(self.agent_host, metrics, "Files/UNLINK", "Maximum-latency", row[volume]['UNLINK']['max_let'])
+              				self.populateDeltaMetrics(self.agent_host, metrics, volume + "/" + "Files/UNLINK", "Operations", row[volume]['UNLINK']['op'])
+                		        self.populateDeltaMetrics(self.agent_host, metrics, volume + "/" + "Files/UNLINK", "Percent-latency", row[volume]['UNLINK']['per_let'])
+                		        self.populateDeltaMetrics(self.agent_host, metrics, volume + "/" + "Files/UNLINK", "Average-latency", row[volume]['UNLINK']['avg_let'])
+                		        self.populateDeltaMetrics(self.agent_host, metrics, volume + "/" + "Files/UNLINK", "Minimum-latency", row[volume]['UNLINK']['min_let'])
+                		        self.populateDeltaMetrics(self.agent_host, metrics, volume + "/" + "Files/UNLINK", "Maximum-latency", row[volume]['UNLINK']['max_let'])
   					WRITES += row[volume]['UNLINK']['op']
 				if 'READDIR' in row[volume]:
 	        		        self.populateDeltaMetrics(self.agent_host, metrics, volume + "/" + "Directories/READDIR", "Operations", row[volume]['READDIR']['op'])
@@ -233,9 +231,9 @@ class Agent:
                 		        self.populateDeltaMetrics(self.agent_host, metrics, volume + "/" + "FilesInformations/OPEN", "Maximum-latency", row[volume]['OPEN']['max_let'])
 					READS += row[volume]['OPEN']['op']
 
-				self.populateDeltaMetrics(self.agent_host, metrics, "Main/Total", "Operations", READS + WRITES)
-        			self.populateDeltaMetrics(self.agent_host, metrics, "Main/Read", "Operations", READS)
-                		self.populateDeltaMetrics(self.agent_host, metrics, "Main/Write", "Operations", WRITES)
+				self.populateDeltaMetrics(self.agent_host, metrics, volume + "/" + "Main/Total", "Operations", READS + WRITES)
+        			self.populateDeltaMetrics(self.agent_host, metrics, volume + "/" + "Main/Read", "Operations", READS)
+                		self.populateDeltaMetrics(self.agent_host, metrics, volume + "/" + "Main/Write", "Operations", WRITES)
 
 
                 		self.components[self.agent_host]['metrics'] = metrics
