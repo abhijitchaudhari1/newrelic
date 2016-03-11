@@ -7,4 +7,4 @@
 4. Edit **/etc/newrelic/newrelic-agent.cfg** to include your license key
 5. Start the required agent(s) as daemon           { E.g **nohup ./newrelic-nfs-v4-monitoring >> /dev/null 2>&1 &** }
 
-Thanks
+Thanks.
